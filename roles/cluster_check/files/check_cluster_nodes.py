@@ -26,7 +26,7 @@ def main():
     # Step 1: 取得 cluster 的 node 名稱
     try:
         kubectl_cmd = [
-            "kubectl", f"--context={context}", "get", "nodes",
+            "/usr/local/bin/kubectl", f"--context={context}", "get", "nodes",
             "-o", "jsonpath={.items[*].metadata.name}"
         ]
         result = subprocess.run(kubectl_cmd, capture_output=True, text=True, check=True)
