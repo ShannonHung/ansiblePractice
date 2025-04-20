@@ -1,0 +1,15 @@
+- name: Run cluster inventory checker script
+  command: >
+    python3 {{ role_path }}/files/check_cluster_nodes.py
+    --context={{ kube_context }}
+    --inventory={{ inventory_file | default('inventory.ini') }}
+  register: result
+  changed_when: false
+
+- name: Debug show script output
+  debug:
+    var: result
+
+- name: Parse script output
+  set_fact:
+    cluster_check_result: "{{ result.stdout | from_json }}"

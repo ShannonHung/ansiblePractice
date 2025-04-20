@@ -1,0 +1,21 @@
+- name: Cluster Inventory Reconciliation
+  hosts: bastion
+  gather_facts: false
+  roles:
+    - cluster_check
+
+- name: Check connection for known nodes
+  hosts: nodes
+  gather_facts: false
+  tasks:
+    - name: Try to ping node
+      block:
+        - name: Ping
+          ping:
+      rescue:
+        - name: Mark unreachable nodes
+          add_host:
+            name: "{{ inventory_hostname }}"
+            groups:
+              - connection_failed
+              - unhealthy

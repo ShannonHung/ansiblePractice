@@ -1,0 +1,41 @@
+---
+- name: Get Kubernetes node names
+  collections:
+    - shannonhung.my_collection
+  hosts: bastion
+  gather_facts: no
+  vars:
+    env_config: kind-app-1-cluster
+    packages:
+      - test1
+      - test2
+      - test3
+  tasks:
+    - name: Run kubectl get nodes
+      shell: kubectl --context={{ env_config }} get nodes | awk '{ print $1}'
+      register: result
+      tags: k8s
+    - name: Show Kubernetes nodes
+      debug:
+        var: result.stdout_lines
+      tags: k8s
+    - name: List Example
+      debug:
+        msg: "print package {{ item }}"
+      register: result
+      loop: "{{ packages }}"
+      tags: test
+    - name: Show entire result 
+      debug: 
+        var: result
+      tags: test
+    - name: My Test
+      my_test:
+        name: hello world
+        new: true
+      register: testout
+      tags: test
+    - name: dump test output
+      debug:
+        msg: '{{ testout }}'
+      tags: test
