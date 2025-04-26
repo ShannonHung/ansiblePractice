@@ -1,0 +1,44 @@
+- name: Test my collection
+  hosts: bastion
+  vars:
+    env_config: kind-app-1-cluster
+  tasks:
+    - name: Show targets
+      debug:
+        msg: "{{ groups['node'] }}"
+
+#    - name: Ping all node hosts from bastion
+#      ping:
+#      loop: "{{ groups['node'] }}"
+#      loop_control:
+#        loop_var: target_host
+#      delegate_to: "{{ target_host }}"
+#      run_once: true  # optional，如果你只想在一台 bastion 做這個 loop
+
+    - name: Check node time
+      shannonhung.my_collection.my_setup:
+      loop: "{{ groups['node'] }}"
+      loop_control:
+        loop_var: target_host
+      delegate_to: "{{ target_host }}"
+      register: time_check_result
+      run_once: true
+
+    - name: Show time delta
+      debug:
+        var: time_check_result
+
+#    - name: Check node states
+#      shannonhung.my_collection.node_health_check:
+#        targets: "{{ groups['node'] }}"
+#        desired_missing: true
+#        current_missing: true
+#        ping_failed: true
+#        unhealthy_label:
+#          - "node.kubernetes.io/unreachable"
+#          - "custom/maintenance"
+#        node_not_ready: true
+#      register: result
+
+#    - debug:
+#        var: result.results
