@@ -30,7 +30,7 @@
           when: >
             (ping_result.failed | default(false)) or
             (ping_result.unreachable | default(false))
-      when: inventory_hostname not in hostvars['localhost'].unhealthy_node_list
+      when: inventory_hostname not in (hostvars['localhost'].unhealthy_node_list | default([]))
 
     - name: Show failed node list
       debug:
@@ -38,17 +38,23 @@
           - "{{ inventory_hostname }} ping is failed : {{ check_failed }}"
 
 # (Step4) 因為上面都是併發處理，當處理好每一台 node 的 task 之後可以在一個個處理加進去 list 裡面
-- name: Add failed hosts to 'ping_failed' and 'unhealthy_node' list
+- name: Add failed hosts to 'failed_node' and 'success_node' groups
   hosts: all
   gather_facts: no
-  serial: 1  # << 每次只處理一個主機，避免併發衝突
+  serial: 1  # 每次只處理一台，避免 race condition
   tasks:
-    # (3.4) 根據 ping_result 更新 localhost 上的 unhealthy_node_list 和 ping_failed_list
-    - name: Add failed node to unhealthy_node_list and ping_failed_list
-      set_fact:
-        unhealthy_node_list: "{{ hostvars['localhost'].unhealthy_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].unhealthy_node_list }}"
-        failed_node_list: "{{ hostvars['localhost'].failed_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].failed_node_list }}"
-        success_node_list: "{{ hostvars['localhost'].success_node_list + [inventory_hostname] if not check_failed else hostvars['localhost'].success_node_list }}"
-      delegate_to: localhost
-      delegate_facts: true  # << 一定要添加，才可以把 facts 從一個節點委派到 delegate_to 所指定的節點
+    - name: Add current host to failed_node group if check_failed
+      ansible.builtin.add_host:
+        name: "{{ inventory_hostname }}"
+        groups: failed_node
+      when: check_failed | default(false)
 
+    - name: Add current host to success_node group if not check_failed
+      ansible.builtin.add_host:
+        name: "{{ inventory_hostname }}"
+        groups: success_node
+      when: not (check_failed | default(false))
+
+    - name: Show inventory groups
+      debug:
+        var: groups

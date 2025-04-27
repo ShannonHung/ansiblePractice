@@ -13,19 +13,51 @@
         envconfig: kind-app-1-cluster
       run_once: true
 
-    # (1.3) 可以用來查看結果
-    - name: Before Show Health Check Result
-      include_role:
-        name: shannonhung.my_collection.show_results
-      run_once: true
-
     # (Step 2) 除了透過 true, false 選擇要不要整理 list，可以重新決定對於自己的 roles 來說 unhealthy_node_list 的定義
     - name: Redefined unhealthy_node_list
       set_fact:
         unhealthy_node_list: "{{ current_missing_list + desired_missing_list + node_not_ready_list + unhealthy_label_list | unique }}"
       run_once: true
-
     - name: After Show result
       include_role:
         name: shannonhung.my_collection.show_results
       run_once: true
+
+
+- name: Create inventory groups
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Create unhealthy_node group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: unhealthy_node
+      loop: "{{ unhealthy_node_list | unique }}"
+
+    - name: Create desired_missing group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: desired_missing
+      loop: "{{ desired_missing_list | unique }}"
+
+    - name: Create current_missing group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: current_missing
+      loop: "{{ current_missing_list | unique }}"
+
+    - name: Create unhealthy_node group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: node_not_ready
+      loop: "{{ node_not_ready_list | unique }}"
+
+    - name: Create unhealthy_label group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: unhealthy_label
+      loop: "{{ unhealthy_label_list | unique }}"
+
+    - name: Show new inventory groups
+      debug:
+        var: groups

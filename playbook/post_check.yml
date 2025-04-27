@@ -2,7 +2,19 @@
   hosts: all
   gather_facts: no
   tasks:
-    - name: After Show result
-      include_role:
-        name: shannonhung.my_collection.show_results
+    - name: After show result
+      debug:
+        msg:
+          - "failed_node: {{ groups['failed_node'] | default([])}}"
+          - "success_node: {{ groups['success_node'] | default([])}}"
+          - "unhealthy_node: {{ groups['unhealthy_node'] | default([])}}"
+          - "current_missing: {{ groups['current_missing'] | default([])}}"
+          - "desired_missing: {{ groups['desired_missing'] | default([])}}"
+          - "node_not_ready: {{ groups['node_not_ready'] | default([])}}"
+      run_once: true
+
+    - name: Fail if failed_node group is not empty
+      ansible.builtin.fail:
+        msg: "There are nodes that failed health check: {{ groups['failed_node'] }}"
+      when: groups['failed_node'] | default([]) | length > 0
       run_once: true
