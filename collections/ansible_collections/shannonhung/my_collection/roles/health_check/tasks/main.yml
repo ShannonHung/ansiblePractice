@@ -1,0 +1,41 @@
+---
+- name: Show Health Check vars
+  debug:
+    msg:
+      - "targets: {{ targets }}"
+      - "envconfig: {{ envconfig }}"
+      - "desired_missing: {{ desired_missing }}"
+      - "current_missing: {{ current_missing }}"
+      - "node_not_ready: {{ node_not_ready }}"
+      - "unhealthy_label: {{ unhealthy_label }}"
+  # 如果外面 playbook 引用的地方使用 hosts: localhsot 就不用擔心
+  # 擔心的是他使用 all 來用這個 roles
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true
+
+- name: Check node states
+  shannonhung.my_collection.health_check:
+    targets: "{{ targets }}"
+    envconfig: "{{ envconfig }}"
+    desired_missing: "{{ desired_missing }}"
+    current_missing: "{{ current_missing }}"
+    node_not_ready: "{{ node_not_ready }}"
+    unhealthy_label: "{{ unhealthy_label }}"
+  register: unhealthy_groups
+  # 因為本身 action plugin 就是在 localhost 執行就不用寫 delegate_to 了
+  run_once: true
+
+- name: Set all current state groups as facts
+  set_fact:
+    current_missing_list: "{{ unhealthy_groups.results.current_missing_list }}"
+    desired_missing_list: "{{ unhealthy_groups.results.desired_missing_list }}"
+    node_not_ready_list: "{{ unhealthy_groups.results.node_not_ready_list }}"
+    unhealthy_label_list: "{{ unhealthy_groups.results.unhealthy_label_list }}"
+    unhealthy_node_list: "{{ unhealthy_groups.results.unhealthy_node_list }}"
+    failed_node_list: "{{ unhealthy_groups.results.failed_node_list }}"
+    success_node_list: "{{ unhealthy_groups.results.success_node_list }}"
+  delegate_to: localhost
+  delegate_facts: true
+  register: unhealthy_groups
+  run_once: true

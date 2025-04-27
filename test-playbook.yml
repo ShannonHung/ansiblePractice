@@ -1,0 +1,26 @@
+- name: Demo async task on localhost
+  hosts: localhost
+  gather_facts: false
+  tasks:
+
+    - name: Run a 10-second sleep command in background
+      command: sleep 10
+      async: 30
+      poll: 0
+      register: async_job
+
+    - name: Print job info (shows job ID)
+      debug:
+        var: async_job
+
+    - name: Wait for async job to finish
+      async_status:
+        jid: "{{ async_job.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 10
+      delay: 1
+
+    - name: Print result of async job
+      debug:
+        var: job_result

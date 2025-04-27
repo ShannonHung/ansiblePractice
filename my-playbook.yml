@@ -30,7 +30,7 @@
         var: result
       tags: test
     - name: My Test
-      my_test:
+      current_states:
         name: hello world
         new: true
       register: testout

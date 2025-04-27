@@ -42,15 +42,23 @@ class ActionModule(ActionBase):
         unhealthy_label = self._task.args.get('unhealthy_label', [])
         node_not_ready = self._task.args.get('node_not_ready', True)
 
+
         if not targets:
             raise AnsibleError("Missing required parameter: targets")
+        if not envconfig:
+            raise AnsibleError("Missing required parameter: envconfig")
 
         results = {
+            # action plugin 產生好
             "desired_missing_list": [],
             "current_missing_list": [],
             "unhealthy_label_list": [],
             "node_not_ready_list": [],
-            "unhealthy_node_list": []
+            "unhealthy_node_list": [],
+            # 使用者填入
+            "failed_node_list": [],
+            "success_node_list": [],
+            "unfinished_node_list": []
         }
 
         # Step 1: 取得 k8s nodes
@@ -65,12 +73,12 @@ class ActionModule(ActionBase):
 
         # desired_missing_list
         if desired_missing:
-            desired_missing_list = [node for node in kube_node_names if node not in targets]
+            desired_missing_list = [host for host in targets if host not in kube_node_names]
             results['desired_missing_list'] = desired_missing_list
 
         # current_missing_list
         if current_missing:
-            current_missing_list = [host for host in targets if host not in kube_node_names]
+            current_missing_list = [node for node in kube_node_names if node not in targets]
             results['current_missing_list'] = current_missing_list
 
         # unhealthy_label_list

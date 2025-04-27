@@ -44,6 +44,8 @@ RETURN = '''
 
 from ansible.module_utils.basic import AnsibleModule
 
+import pydevd_pycharm
+
 
 def run_module():
     # define the available arguments/parameters that a user can pass to
@@ -69,6 +71,7 @@ def run_module():
         argument_spec=module_args,
         supports_check_mode=True
     )
+    pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
 
     # if the user is working with this module in only check mode we do not
     # want to make any changes to the environment, just return the current

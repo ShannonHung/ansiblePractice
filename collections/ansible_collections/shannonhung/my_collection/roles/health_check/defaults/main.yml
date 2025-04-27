@@ -1,6 +1,5 @@
 ---
-targets: []
-envconfig: "something"
+targets: "{{ groups['node'] }}"
 desired_missing: true
 current_missing: true
 node_not_ready: true

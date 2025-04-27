@@ -21,13 +21,15 @@ options:
 
 class InventoryModule(BaseInventoryPlugin):
 
-    NAME = 'shannonhung.my_collection.my_plugin'
+    NAME = 'my_plugin'
 
     def verify_file(self, path):
-        return path.endswith(('my_inventory.yml', 'my_inventory.yaml'))
+        return path.endswith(('inventory.ini', 'my_inventory.yaml'))
 
     def parse(self, inventory, loader, path, cache=True):
         super(InventoryModule, self).parse(inventory, loader, path)
+        # Debugging line to check if parse is called
+        self.display.display("Parsing inventory file: {}".format(path))
 
         # 建立 hello 群組
         self.inventory.add_group('hello')
