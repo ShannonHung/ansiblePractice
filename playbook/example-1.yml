@@ -1,0 +1,139 @@
+
+
+# (Step1) 使用 unhealthy check action plugin
+- name: How to build your own unhealthy_xxx_list
+  hosts: localhost
+  vars:
+    envconfig: kind-app-1-cluster
+  tasks:
+    - name: Check node states
+      shannonhung.my_collection.health_check:
+        targets: "{{ groups['node'] }}"
+        envconfig: "{{ envconfig }}"
+        desired_missing: true   # 在 inventory 可是不在 k8s
+        current_missing: true   # 在 k8s 但是不在 inventory
+        node_not_ready: true    # 在 k8s 裡面狀態不是 Ready
+        unhealthy_label:
+          - { "cordon_reason": "PM" }
+          - { "node.kubernetes.io/unreachable": "true" }
+      register: unhealthy_groups
+      delegate_facts: true
+
+    - name: Debug show my_collection.health_check
+      debug:
+        var: unhealthy_groups.results
+
+    - name: Set result as facts
+      set_fact:
+        # 預設會先檢查好
+        current_missing_list: "{{ unhealthy_groups.results.current_missing_list }}"
+        desired_missing_list: "{{ unhealthy_groups.results.desired_missing_list }}"
+        node_not_ready_list: "{{ unhealthy_groups.results.node_not_ready_list }}"
+        unhealthy_label_list: "{{ unhealthy_groups.results.unhealthy_label_list }}"
+        unhealthy_node_list: "{{ unhealthy_groups.results.unhealthy_node_list }}"
+        # 使用者塞入用
+        failed_node_list: "{{ unhealthy_groups.results.failed_node_list }}"
+        success_node_list: "{{ unhealthy_groups.results.success_node_list }}"
+
+
+# (Step 2) 除了透過 true, false 選擇要不要整理 list，可以重新決定對於自己的 roles 來說 unhealthy_node_list 的定義
+- name: Redefined unhealthy_node_list
+  hosts: localhost # << 因為資料存在 localhost 上所以要這樣做優
+  gather_facts: no
+  tasks:
+    - name: Redefined my unhealthy_nodes
+      set_fact:
+        unhealthy_node_list: "{{ current_missing_list + desired_missing_list + node_not_ready_list + unhealthy_label_list | unique }}" # + desired_missing_list + node_not_ready_list + unhealthy_label_list
+
+    - name: Show unhealthy_node_list
+      debug:
+        var: unhealthy_node_list
+
+
+# (Step3) 再來開始做正事，做正事之前可以透過 unhealthy_node_list 移除
+- name: Ping nodes and add failed hosts to 'ping_failed' and 'unhealthy_node' list
+  hosts: "{{ groups['node'] | difference(hostvars['localhost'].unhealthy_node_list) }}"
+  gather_facts: no
+  tasks:
+    # (3.1) 要記得先把每個 node 先設定 check_failed
+    - name: Init failed fact on each host
+      set_fact:
+        check_failed: false
+
+    # (3.2)
+    # >> 使用 when 忽略 unhealthy_node_list 就不做了 (unhealthy_node_list) 可以自己定義
+    # >> 要記得使用 ignore_errors 否則無法設定 check_failed fact
+    - name: Ping the host
+      ping:
+      register: ping_result
+      ignore_errors: yes # <<< 保護 register 不會中斷
+      ignore_unreachable: yes # <<< 保護 unreachable 不會中斷
+      when: >
+        inventory_hostname not in hostvars['localhost'].unhealthy_node_list
+
+    - name: Show ping_result
+      debug:
+        var: ping_result
+
+    # (3.3) check_failed 設定為 true
+    - name: Attach check_failed tag on host
+      set_fact:
+        check_failed: true
+      when: >
+          (ping_result.failed | default(false)) or
+          (ping_result.unreachable | default(false))
+
+    - name: Show failed node list
+      debug:
+        msg:
+          - "{{ inventory_hostname }} ping is failed : {{ check_failed }}"
+
+
+# (Step4) 因為上面都是併發處理，當處理好每一台 node 的 task 之後可以在一個個處理加進去 list 裡面
+- name: Ping nodes and add failed hosts to 'ping_failed' and 'unhealthy_node' list
+  hosts: "{{ groups['node'] | difference(hostvars['localhost'].unhealthy_node_list) }}"
+  serial: 1  # << 每次只處理一個主機，避免併發衝突
+  tasks:
+    # (3.4) 根據 ping_result 更新 localhost 上的 unhealthy_node_list 和 ping_failed_list
+    - name: Add failed node to unhealthy_node_list and ping_failed_list
+      set_fact:
+        unhealthy_node_list: "{{ hostvars['localhost'].unhealthy_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].unhealthy_node_list }}"
+        failed_node_list: "{{ hostvars['localhost'].failed_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].failed_node_list }}"
+        success_node_list: "{{ hostvars['localhost'].success_node_list + [inventory_hostname] if not check_failed else hostvars['localhost'].success_node_list }}"
+      delegate_to: localhost
+      delegate_facts: true  # << 一定要添加，才可以把 facts 從一個節點委派到 delegate_to 所指定的節點
+
+
+# (Step4) 來看一下 localhost 當下的所有 node 狀態
+- name: Show localhost all groups facts
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Show current groups
+      debug:
+        msg:
+          - "success_node_list: {{ success_node_list }}"
+          - "failed_node_list: {{ failed_node_list }}"
+          - "unhealthy_node_list: {{ unhealthy_node_list }}"
+
+
+## (補充) 可以設定 inventory groups
+#- name: Create inventory groups
+#  hosts: bastion
+#  gather_facts: no
+#  tasks:
+#    - name: Create unfinished_nodes group
+#      ansible.builtin.add_host:
+#        name: "{{ item }}"
+#        groups: unfinished_nodes
+#      loop: "{{ failed_node_list + unhealthy_node_list | unique }}"
+#
+#    - name: Create success_nodes group
+#      ansible.builtin.add_host:
+#        name: "{{ item }}"
+#        groups: success_node_list
+#      loop: "{{ success_node_list }}"
+#
+#    - name: Show new inventory groups
+#      debug:
+#        var: groups

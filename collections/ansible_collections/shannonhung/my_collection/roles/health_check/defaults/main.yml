@@ -1,0 +1,9 @@
+---
+targets: []
+envconfig: "something"
+desired_missing: true
+current_missing: true
+node_not_ready: true
+unhealthy_label:
+  - { "cordon_reason": "PM" }
+  - { "node.kubernetes.io/unreachable": "true" }

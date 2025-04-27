@@ -1,0 +1,54 @@
+# (Step3) 再來開始做正事，做正事之前可以透過 unhealthy_node_list 移除
+# (3.1) 可以移除 unhealthy_node_list 的 host
+  #"{{ groups['node'] | difference(hostvars['localhost'].unhealthy_node_list) }}"
+  # 如果要使用 --limit 就必須使用 when 可以 ansible_playbook_hosts 近一步在 dashboard 移除
+- name: Ping nodes and add failed hosts to 'ping_failed' and 'unhealthy_node' list
+  hosts: all
+  gather_facts: no
+  tasks:
+      # (3.2) 要記得先把每個 node 先設定 check_failed
+    - name: Init failed fact on each host
+      set_fact:
+        check_failed: false
+
+    - name: collection failed host
+      block:
+        # (3.3) 要記得使用 ignore_errors 否則無法設定 check_failed fact
+        - name: Ping the host
+          ping:
+          register: ping_result   # <<< 補捉狀態
+          ignore_errors: yes      # <<< 保護 register 不會中斷
+          ignore_unreachable: yes # <<< 保護 unreachable 不會中斷
+        - name: Show ping_result
+          debug:
+            var: ping_result
+
+        # (3.3) check_failed 設定為 true 如果操作失敗
+        - name: Attach check_failed tag on host
+          set_fact:
+            check_failed: true
+          when: >
+            (ping_result.failed | default(false)) or
+            (ping_result.unreachable | default(false))
+      when: inventory_hostname not in hostvars['localhost'].unhealthy_node_list
+
+    - name: Show failed node list
+      debug:
+        msg:
+          - "{{ inventory_hostname }} ping is failed : {{ check_failed }}"
+
+# (Step4) 因為上面都是併發處理，當處理好每一台 node 的 task 之後可以在一個個處理加進去 list 裡面
+- name: Add failed hosts to 'ping_failed' and 'unhealthy_node' list
+  hosts: all
+  gather_facts: no
+  serial: 1  # << 每次只處理一個主機，避免併發衝突
+  tasks:
+    # (3.4) 根據 ping_result 更新 localhost 上的 unhealthy_node_list 和 ping_failed_list
+    - name: Add failed node to unhealthy_node_list and ping_failed_list
+      set_fact:
+        unhealthy_node_list: "{{ hostvars['localhost'].unhealthy_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].unhealthy_node_list }}"
+        failed_node_list: "{{ hostvars['localhost'].failed_node_list + [inventory_hostname] if check_failed else hostvars['localhost'].failed_node_list }}"
+        success_node_list: "{{ hostvars['localhost'].success_node_list + [inventory_hostname] if not check_failed else hostvars['localhost'].success_node_list }}"
+      delegate_to: localhost
+      delegate_facts: true  # << 一定要添加，才可以把 facts 從一個節點委派到 delegate_to 所指定的節點
+

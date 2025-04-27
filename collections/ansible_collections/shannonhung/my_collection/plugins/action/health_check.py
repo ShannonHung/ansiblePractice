@@ -5,7 +5,6 @@ __metaclass__ = type
 import json
 from ansible.plugins.action import ActionBase
 from ansible.errors import AnsibleError
-import pydevd_pycharm
 
 
 def _parse_kubectl_nodes(output):
@@ -37,6 +36,7 @@ class ActionModule(ActionBase):
 
         # 取得參數
         targets = self._task.args.get('targets', [])
+        envconfig = self._task.args.get('envconfig', "")
         desired_missing = self._task.args.get('desired_missing', True)
         current_missing = self._task.args.get('current_missing', True)
         unhealthy_label = self._task.args.get('unhealthy_label', [])
@@ -48,14 +48,13 @@ class ActionModule(ActionBase):
         results = {
             "desired_missing_list": [],
             "current_missing_list": [],
-            "ping_failed_list": [],
             "unhealthy_label_list": [],
             "node_not_ready_list": [],
             "unhealthy_node_list": []
         }
 
         # Step 1: 取得 k8s nodes
-        rc, kube_output, err = self._execute_kubectl_get_nodes()
+        rc, kube_output, err = self._execute_kubectl_get_nodes(envconfig)
         if rc != 0:
             raise AnsibleError(f"Failed to run kubectl get nodes: {err}")
 
@@ -66,12 +65,12 @@ class ActionModule(ActionBase):
 
         # desired_missing_list
         if desired_missing:
-            desired_missing_list = [host for host in targets if host not in kube_node_names]
+            desired_missing_list = [node for node in kube_node_names if node not in targets]
             results['desired_missing_list'] = desired_missing_list
 
         # current_missing_list
         if current_missing:
-            current_missing_list = [node for node in kube_node_names if node not in targets]
+            current_missing_list = [host for host in targets if host not in kube_node_names]
             results['current_missing_list'] = current_missing_list
 
         # unhealthy_label_list
@@ -97,7 +96,6 @@ class ActionModule(ActionBase):
         combined = set()
         combined.update(results['desired_missing_list'])
         combined.update(results['current_missing_list'])
-        combined.update(results['ping_failed_list'])
         combined.update(results['unhealthy_label_list'])
         combined.update(results['node_not_ready_list'])
         results['unhealthy_node_list'] = list(combined)
@@ -107,8 +105,8 @@ class ActionModule(ActionBase):
             "results": results
         }
 
-    def _execute_kubectl_get_nodes(self):
-        cmd = ['kubectl', 'get', 'nodes', '-o', 'json']
+    def _execute_kubectl_get_nodes(self, env_config):
+        cmd = ['kubectl', f'--context={env_config}', 'get', 'nodes', '-o', 'json']
         rc, out, err = self._module_execution('command',
                                               {'_raw_params': ' '.join(cmd)}
                                               )

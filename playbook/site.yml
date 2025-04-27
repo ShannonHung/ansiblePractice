@@ -1,0 +1,4 @@
+# site.yml
+- import_playbook: pre_check.yml
+- import_playbook: main_tasks.yml
+- import_playbook: post_check.yml

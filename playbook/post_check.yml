@@ -1,0 +1,8 @@
+- name: Show Final Results
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: After Show result
+      include_role:
+        name: shannonhung.my_collection.show_results
+      run_once: true
